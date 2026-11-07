@@ -1,0 +1,53 @@
+# CI: build + test + clippy + fmt + tmux-setup fixtures.
+#
+# Runner notes (vcs.fondorg.ru self-hosted):
+#  - `actions/checkout@v4` resolves via the slim/actions-* mirror (tag v4 verified).
+#  - Rust toolchain: use the runner's preinstalled cargo when it matches, else
+#    rustup from sh.rustup.rs (retry: the runner has documented egress flakiness;
+#    GitHub release CDN (Azure) is NOT a fallback option on this class of runners).
+#  - No `services:` (act_runner network conflicts); not needed here.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ gitea.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust 1.97.1 (preinstalled or rustup)
+        run: |
+          if command -v cargo >/dev/null 2>&1 && rustc --version | grep -q '1\.97\.1'; then
+            echo "Using preinstalled toolchain: $(rustc --version)"
+          else
+            curl --proto '=https' --tlsv1.2 -sSf --retry 3 https://sh.rustup.rs \
+              | sh -s -- -y --default-toolchain 1.97.1 --profile minimal --no-modify-path
+            . "$HOME/.cargo/env"
+            rustup component add clippy rustfmt --toolchain 1.97.1
+            echo "$HOME/.cargo/bin" >> "${GITEA_PATH:-$GITHUB_PATH}"
+          fi
+
+      - name: cargo build
+        run: cargo build --all-targets
+
+      - name: cargo test
+        run: cargo test
+
+      - name: cargo clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo fmt
+        run: cargo fmt --check
+
+      - name: tmux-setup fixtures
+        run: bash tests/tmux-setup-fixtures.sh

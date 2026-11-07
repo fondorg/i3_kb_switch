@@ -1,0 +1,12 @@
+# build artifacts
+/target
+
+# agent/session artifacts (local only, never pushed)
+.superpowers/
+.slim/
+worktrees/
+docs/superpowers/
+
+# handoff / session notes in any subdirectory
+**/handoff.md
+**/session-notes.md

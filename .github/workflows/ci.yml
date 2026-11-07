@@ -1,0 +1,49 @@
+# CI: build + test + clippy + fmt + tmux-setup fixtures.
+# GitHub Actions port of .gitea/workflows/ci.yml (kept for the fondorg mirror).
+# Toolchain: use the runner's preinstalled cargo when it matches, else rustup
+# pinned to 1.97.1 (edition 2024 crate; pin keeps CI deterministic).
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust 1.97.1 (preinstalled or rustup)
+        run: |
+          if command -v cargo >/dev/null 2>&1 && rustc --version | grep -q '1\.97\.1'; then
+            echo "Using preinstalled toolchain: $(rustc --version)"
+          else
+            curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs \
+              | sh -s -- -y --default-toolchain 1.97.1 --profile minimal --no-modify-path
+            . "$HOME/.cargo/env"
+            rustup component add clippy rustfmt --toolchain 1.97.1
+            echo "$HOME/.cargo/bin" >> "$GITHUB_PATH"
+          fi
+
+      - name: cargo build
+        run: cargo build --all-targets
+
+      - name: cargo test
+        run: cargo test
+
+      - name: cargo clippy
+        run: cargo clippy --all-targets -- -D warnings
+
+      - name: cargo fmt
+        run: cargo fmt --check
+
+      - name: tmux-setup fixtures
+        run: bash tests/tmux-setup-fixtures.sh
