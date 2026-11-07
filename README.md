@@ -1,4 +1,4 @@
-# i3_kb_switch
+# i3wm Keyboard Switcher
 
 A small daemon for [i3wm](https://i3wm.org) on X11 that remembers the
 keyboard layout **per window**. When you switch focus between windows, the
